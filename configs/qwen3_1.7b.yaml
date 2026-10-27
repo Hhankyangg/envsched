@@ -1,0 +1,4 @@
+model_id: Qwen/Qwen3-1.7B
+pipeline_parallel_size: 1
+max_steps: 201
+rollout_gpu_memory_utilization: 0.65

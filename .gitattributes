@@ -1,0 +1,2 @@
+# Preserve upstream formatting, including whitespace in benchmark tool responses.
+vendor/** -whitespace

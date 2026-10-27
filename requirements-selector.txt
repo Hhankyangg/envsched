@@ -1,0 +1,7 @@
+# CPU selector and configuration preparation; Python 3.10+.
+numpy==1.26.4
+pandas==2.2.3
+scipy==1.15.3
+scikit-learn==1.6.1
+joblib==1.4.2
+omegaconf==2.3.1

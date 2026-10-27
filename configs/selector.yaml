@@ -1,0 +1,193 @@
+exp_name: ${oc.env:RUN_NAME}
+model_name: ${oc.env:MODEL_PATH}
+num_gpus_per_node: ${oc.decode:${oc.env:NUM_GPUS}}
+max_steps: ${oc.decode:${oc.env:MAX_STEPS}}
+save_steps: 20
+logging_steps: 1
+eval_steps: 1
+sequence_length: 32000
+max_actions_per_traj: 40
+max_token_per_step: 4096
+rollout_batch_size: 512
+val_batch_size: 128
+per_device_train_batch_size: 1
+gradient_accumulation_steps: ${oc.decode:${oc.env:GRADIENT_ACCUMULATION_STEPS}}
+actor_infer_batch_size: 1
+reference_infer_batch_size: 1
+train_group_size: 8
+train_num_env_groups: 64
+reference_kl_coef: 0.0
+seed: 42
+logging_dir: ${oc.env:RUN_DIR}/output/logs
+output_dir: ${oc.env:RUN_DIR}/output
+render_save_dir: ${oc.env:RUN_DIR}/output/render
+rollout_dump_dir: ${oc.env:RUN_DIR}/output/cases
+system_envs:
+  PYTHONPATH: ${oc.env:PYTHONPATH}
+  LD_LIBRARY_PATH: ${oc.env:LD_LIBRARY_PATH,''}
+  CUDA_HOME: ${oc.env:CUDA_HOME,/usr/local/cuda}
+  TOKENIZERS_PARALLELISM: 'false'
+  OMP_NUM_THREADS: '1'
+  MKL_NUM_THREADS: '1'
+  OPENBLAS_NUM_THREADS: '1'
+  NUMEXPR_NUM_THREADS: '1'
+  USE_MODELSCOPE: '0'
+  HUGGINGFACE_AUTOMAP_CACHE: ${output_dir}/automap_cache
+  ROLL_STREAMING_DIST_OPT_SAVE: '1'
+  ROLL_STREAMING_DIST_OPT_SAVE_COPY_AHEAD_BYTES: '1048576'
+track_with: stdout
+tracker_kwargs: {}
+checkpoint_config:
+  type: file_system
+  output_dir: ${oc.env:RUN_DIR}/checkpoint
+  async_upload: false
+  strict_upload: true
+  transfer_mode: hardlink
+  low_memory_save: true
+resume_from_checkpoint: false
+advantage_clip: 0.2
+ppo_epochs: 1
+adv_estimator: reinforce
+init_kl_coef: 0.0
+whiten_advantages: true
+entropy_loss_coef: 0
+max_grad_norm: 1.0
+pretrain: ${model_name}
+reward_pretrain: ${model_name}
+actor_train:
+  model_args:
+    attn_implementation: fa2
+    disable_gradient_checkpointing: false
+    dtype: bf16
+    model_type: null
+  training_args:
+    learning_rate: 1.0e-06
+    weight_decay: 0
+    per_device_train_batch_size: ${per_device_train_batch_size}
+    gradient_accumulation_steps: ${gradient_accumulation_steps}
+    warmup_steps: 10
+    lr_scheduler_type: cosine
+  data_args:
+    template: qwen3
+  strategy_args:
+    strategy_name: megatron_train
+    strategy_config:
+      tensor_model_parallel_size: 1
+      pipeline_model_parallel_size: ${oc.decode:${oc.env:PIPELINE_PARALLEL_SIZE}}
+      expert_model_parallel_size: 1
+      use_distributed_optimizer: true
+      recompute_granularity: full
+      context_parallel_size: 1
+      sequence_parallel: false
+      distrib_optim_fully_reshardable: true
+      distrib_optim_fully_reshardable_mem_efficient: true
+  device_mapping: ${oc.env:DEVICE_MAPPING}
+  infer_batch_size: ${actor_infer_batch_size}
+  world_size: ${num_gpus_per_node}
+actor_infer:
+  model_args:
+    disable_gradient_checkpointing: true
+    dtype: bf16
+  generating_args:
+    max_new_tokens: ${max_token_per_step}
+    top_p: 0.99
+    top_k: 100
+    num_beams: 1
+    temperature: 0.99
+    num_return_sequences: 1
+  data_args:
+    template: qwen3
+  strategy_args:
+    strategy_name: vllm
+    strategy_config:
+      gpu_memory_utilization: ${oc.decode:${oc.env:ROLLOUT_GPU_MEMORY_UTILIZATION}}
+      block_size: 16
+      load_format: auto
+  device_mapping: ${oc.env:DEVICE_MAPPING}
+  world_size: ${num_gpus_per_node}
+reference:
+  model_args:
+    attn_implementation: fa2
+    disable_gradient_checkpointing: true
+    dtype: bf16
+    model_type: null
+  data_args:
+    template: qwen3
+  strategy_args:
+    strategy_name: megatron_infer
+    strategy_config:
+      tensor_model_parallel_size: 1
+      pipeline_model_parallel_size: ${oc.decode:${oc.env:PIPELINE_PARALLEL_SIZE}}
+      expert_model_parallel_size: 1
+      use_distributed_optimizer: true
+      recompute_granularity: full
+      context_parallel_size: 1
+      sequence_parallel: false
+  device_mapping: ${oc.env:DEVICE_MAPPING}
+  infer_batch_size: ${reference_infer_batch_size}
+  world_size: ${num_gpus_per_node}
+reward_normalization:
+  grouping: traj_group_id
+  method: mean_std
+train_env_manager:
+  format_penalty: 0
+  max_env_num_per_worker: 32
+  num_env_groups: 64
+  group_size: 8
+  tags:
+  - SynEnvNonConversationTrain
+  num_groups_partition:
+  - 64
+  episode_id_offset: 0
+  group_seed_manifest_path: ${oc.env:WORKSPACE}/data/train_group_seeds.json
+val_env_manager:
+  max_env_num_per_worker: 32
+  num_env_groups: 128
+  group_size: 1
+  tags:
+  - BFCLEval
+  num_groups_partition:
+  - 128
+  episode_id_offset: 0
+  group_seed_manifest_path: ${oc.env:WORKSPACE}/data/eval_group_seeds.json
+custom_envs:
+  SynEnvNonConversationTrain:
+    env_type: envscaler_non_conv_env
+    max_steps: ${max_actions_per_traj}
+    max_tokens_per_step: ${max_token_per_step}
+    env_manager_cls: roll.pipeline.agentic.env_manager.traj_env_manager_for_env_scaler.TrajEnvManager
+    env_config:
+      mode: train
+      task_manifest_path: ${oc.env:CURRICULUM_MANIFEST_PATH}
+  BFCLEval:
+    env_type: bfcl
+    max_steps: ${max_actions_per_traj}
+    max_tokens_per_step: ${max_token_per_step}
+    env_manager_cls: roll.pipeline.agentic.env_manager.traj_env_manager_for_env_scaler.TrajEnvManager
+    env_config:
+      mode: multi_turn_base
+    generation_seed: 20260712
+    fixed_eval_seed: false
+manual_checkpoint_path: ${output_dir}/SAVE_CHECKPOINT
+add_token_level_kl: false
+use_kl_loss: false
+kl_loss_coef: 0.0
+zero_loss_batch_padding_enabled: false
+curriculum_sampling_enabled: true
+bfcl_alignment_enabled: true
+profiler_output_dir: ${oc.env:RUN_DIR}/output/profiler
+length_profiler_dir: ${oc.env:RUN_DIR}/output/length_profiler
+rollout_case_dump_enabled: true
+max_ckpt_to_keep: 0
+checkpoint_pre_cleanup_enabled: false
+partial_gpu_mode: false
+async_generation_ratio: 0
+rolling_save_steps: 0
+rolling_max_ckpt_to_keep: 1
+enable_reference: false
+curriculum_update_command: bash "${oc.env:WORKSPACE}/scripts/update_online_variance_curriculum.sh"
+  --batch-size 64
+curriculum_update_start_step: 1
+curriculum_update_timeout_seconds: 1200
+curriculum_update_strict: true
+pg_clip: 0.2

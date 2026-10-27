@@ -1,0 +1,4 @@
+model_id: Qwen/Qwen3-8B
+pipeline_parallel_size: 2
+max_steps: 201
+rollout_gpu_memory_utilization: 0.5

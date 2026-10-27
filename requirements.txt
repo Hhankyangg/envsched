@@ -1,0 +1,26 @@
+# Python 3.10, PyTorch 2.6 / CUDA 12.4. Install with scripts/install.sh.
+-r requirements-selector.txt
+torch==2.6.0
+torchvision==0.21.0
+vllm==0.8.4
+transformers==4.51.3
+megatron-core==0.16.1
+accelerate==0.34.2
+peft==0.12.0
+ray[cgraph]==2.48.0
+tensordict==0.7.2
+datasets==3.1.0
+gem-llm==0.0.4
+codetiming==1.4.0
+dacite==1.9.2
+orjson>=3.10,<4
+imageio>=2.34,<3
+more-itertools==11.1.0
+pybase64==1.4.3
+# Match vLLM 0.8.4's telemetry dependencies.
+protobuf==4.25.9
+opentelemetry-api==1.26.0
+opentelemetry-sdk==1.26.0
+opentelemetry-proto==1.26.0
+opentelemetry-semantic-conventions==0.47b0
+opentelemetry-exporter-otlp==1.26.0

@@ -1,0 +1,31 @@
+{
+  "source": {
+    "repository": "https://github.com/RUC-NLPIR/EnvScaler",
+    "commit": "7ab81e557c5992d62d4533e81bfec3d2ca0ae24b",
+    "raw_url": "https://raw.githubusercontent.com/RUC-NLPIR/EnvScaler/{commit}/{path}"
+  },
+  "files": {
+    "vendor/ROLL/roll/pipeline/agentic/env/bfcl_env/data/data_multi_turn_base.json": {
+      "source": "rl/roll/pipeline/agentic/env/bfcl_env/data/data_multi_turn_base.json",
+      "source_sha256": "f38e5fbb5f663e0f48ec339607ba21a6ed68a540589646a83e9d344f97c45dcd",
+      "sha256": "f38e5fbb5f663e0f48ec339607ba21a6ed68a540589646a83e9d344f97c45dcd",
+      "size": 10717957
+    },
+    "vendor/ROLL/roll/pipeline/agentic/env/envscaler_env/data/envscaler_rl_scenario_metadata.json": {
+      "source": "rl/roll/pipeline/agentic/env/envscaler_env/data/envscaler_rl_scenario_metadata.json",
+      "source_sha256": "5977bda0b941a9111b290cbf5ffd6d70678a36ddc499b8f153826fd22999337e",
+      "sha256": "5977bda0b941a9111b290cbf5ffd6d70678a36ddc499b8f153826fd22999337e",
+      "size": 42506881
+    },
+    "vendor/ROLL/roll/pipeline/agentic/env/envscaler_env/data/environment_metadata.json": {
+      "source": "rl/roll/pipeline/agentic/env/envscaler_env/data/191_env_metadata.json",
+      "source_sha256": "d2c0010f16ff77d6d55868ee386353b1d0aadace58beed1eed678e8f7c84c33d",
+      "derive": "scenario_environments",
+      "sha256": "a41fe5e1d0fe5bb57650c2373a19417cb413c2e4336e97c271830d82e44fdf8f",
+      "size": 4835760
+    }
+  },
+  "generated": {
+    "data/task_topologies.jsonl": "topology_generator/generate_topology.py"
+  }
+}
