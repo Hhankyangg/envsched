@@ -1,19 +1,107 @@
-# EnvSched
+<h1 align="center">EnvSched</h1>
+<h3 align="center">Environment-Aware Scheduling for<br>Rollout-Efficient Agent Reinforcement Learning</h3>
 
-Code for **EnvSched: Environment-Aware Scheduling for Rollout-Efficient Agent Reinforcement Learning**.
+<p align="center">
+  Sihan Yang, Weichen Bai, Ruichuan An, Yiming Cheng, Zhiyuan Feng, Tianyi Jiang,<br>
+  Renye Yan, Ning Ding, Yifan Zhang, Renrui Zhang, Yehui Tang, Wentao Zhang
+</p>
 
-EnvSched decides which tasks to train on at each step of agentic RL. Instead of sampling tasks at random, it predicts which tasks will give informative (high-variance) rewards and spreads each batch across under-explored environments, using only the rollout history already collected. No extra pilot rollouts are needed.
+<p align="center">
+  PKU · XJTU · THU · Samsung Research · CASIA · CUHK
+</p>
 
-## Contents
+<p align="center">
+  <a href="https://arxiv.org/abs/2610.37609"><img src="https://img.shields.io/badge/arXiv-2610.37609-b31b1b.svg" alt="arXiv:2610.37609"></a>
+  <a href="https://arxiv.org/pdf/2610.37609"><img src="https://img.shields.io/badge/Paper-PDF-2563eb.svg" alt="Paper PDF"></a>
+  <a href="https://github.com/Hhankyangg/envsched"><img src="https://img.shields.io/badge/Code-GitHub-181717.svg?logo=github" alt="Code on GitHub"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-16a34a.svg" alt="MIT License"></a>
+</p>
 
-- The EnvSched scheduler (`selector/`)
-- A GRPO training entry point for Qwen3-1.7B, 4B, and 8B thinking models on the EnvScaler pool (2,550 tasks in 51 environments), starting from the original models without SFT
-- A modified, reduced copy of the [ROLL](https://github.com/alibaba/ROLL) training framework (`vendor/ROLL/`). An unmodified ROLL install will not work, because this copy adds curriculum updates, trajectory logging, and the EnvScaler environments.
-- A tool that generates the task topologies the scheduler needs (`topology_generator/`)
+<p align="center">
+  <a href="#overview">Overview</a> ·
+  <a href="#main-results">Results</a> ·
+  <a href="#quick-start">Quick Start</a> ·
+  <a href="#repository-layout">Code Structure</a> ·
+  <a href="#citation">Citation</a>
+</p>
+
+Official implementation of **[EnvSched: Environment-Aware Scheduling for Rollout-Efficient Agent Reinforcement Learning](https://arxiv.org/abs/2610.37609)**.
+
+> **TL;DR:** Schedule informative tasks while preserving environment coverage, using existing rollout history. On Qwen3-8B, EnvSched reaches **48.81** averaged across three benchmarks after **40 steps**, exceeding the best score random scheduling attains during **120 steps** under matched per-step rollout budgets.
+
+<p align="center">
+  <img src="assets/teaser.png" alt="Growth in executable environments and RL resources, alongside Qwen3-8B training efficiency: EnvSched reaches an average benchmark score of 48.81 after 40 steps." width="100%">
+</p>
+
+<p align="center"><em>Scaling executable environments and improving rollout efficiency. Right: Qwen3-8B scores averaged across BFCL-v3, τ-Bench, and ACEBench-Agent.</em></p>
+
+## Overview
+
+As executable environments scale, which environment–task pairs should an agent train on next? **EnvSched** combines predicted within-task reward variance with coverage of underobserved environments and tasks. The scheduler learns from rollout history already collected during training, requiring **no additional pilot rollouts**.
+
+<p align="center">
+  <img src="assets/training-loop.png" alt="EnvSched training loop: initialize a batch, collect rollouts, update the policy and reward histories, propagate history over the graph, and select the next batch through coverage and exploitation." width="100%">
+</p>
+
+<p align="center"><em>Rollout outcomes update the graph histories, which guide the next batch of training tasks.</em></p>
+
+- **Environment-aware representation.** A dual-relation graph connects tasks within an environment through concrete semantics, tools, states, and verifiers, and across environments through abstract execution and reward topology.
+- **History-based informativeness prediction.** Historical reward statistics propagate through both relations and combine with each task's own history to estimate within-task reward variance under the evolving policy.
+- **Coverage and exploitation.** Half of each batch covers underobserved environments and tasks; the other half prioritizes informative tasks. Environment quotas, exposure discounts, and a similarity penalty control concentration and redundancy.
+
+<details>
+<summary><strong>A closer look at the dual-relation graph</strong></summary>
+
+<p align="center">
+  <img src="assets/dual-relation-graph.png" alt="Within-environment and cross-environment neighbors transfer historical reward statistics to a target task. Their estimates form a graph prior, which is fused with the target's own history and calibrated into an informativeness score." width="100%">
+</p>
+
+Within-environment edges retain domain-specific tools, state, and verifier information. Cross-environment edges transfer evidence between structurally similar tasks in different domains. An unobserved task relies on the graph prior; its own observations gain weight as its history grows. See [Section 2 of the paper](https://arxiv.org/html/2610.37609v1#S2) for the method and Appendices B–E for the estimator, scheduling rules, configuration, and topology-extraction prompt.
+
+</details>
+
+## Main results
+
+We train Qwen3-Thinking models with GRPO on **2,550 tasks across 51 executable environments** from EnvScaler, starting from the original models without SFT. Each training step uses **64 tasks × 8 rollouts**.
+
+The table reports the benchmark **Overall** scores from [Table 1 of the paper](https://arxiv.org/html/2610.37609v1#S3.T1). Higher is better. EnvSched's 40-step rows use **one fifth of the training steps** of the 200-step baselines.
+
+| Model | Scheduler | Steps | BFCL-v3 Multi-Turn | τ-Bench | ACEBench-Agent |
+| :--- | :--- | ---: | ---: | ---: | ---: |
+| Qwen3-1.7B | Base model | 0 | 8.99 | 11.11 | 30.67 |
+| Qwen3-1.7B | Random | 200 | 10.46 | 15.56 | 28.67 |
+| Qwen3-1.7B | EnvSched | 40 | 11.75 | 16.97 | 30.67 |
+| Qwen3-1.7B | **EnvSched** | **200** | **12.42** | **17.58** | **31.33** |
+| Qwen3-4B | Base model | 0 | 25.38 | 36.36 | 53.33 |
+| Qwen3-4B | Random | 200 | 28.83 | 37.78 | 56.00 |
+| Qwen3-4B | EnvSched | 40 | 30.17 | 41.01 | 58.00 |
+| Qwen3-4B | **EnvSched** | **200** | **31.88** | **41.01** | **58.00** |
+| Qwen3-8B | Base model | 0 | 28.88 | 41.41 | 58.67 |
+| Qwen3-8B | Random | 200 | 33.88 | 47.27 | 55.33 |
+| Qwen3-8B | EnvSched | 40 | 37.71 | 50.71 | 58.00 |
+| Qwen3-8B | **EnvSched** | **200** | **37.88** | **50.30** | **58.67** |
+| Qwen3-30B-A3B | Base model | 0 | 32.88 | 52.53 | 66.00 |
+| Qwen3-30B-A3B | Random | 200 | 33.88 | 51.72 | 68.00 |
+| Qwen3-30B-A3B | EnvSched | 40 | 35.00 | 53.54 | 70.00 |
+| Qwen3-30B-A3B | **EnvSched** | **200** | **37.79** | **54.75** | **70.67** |
+
+At 200 steps, **Qwen3-30B-A3B** improves over random scheduling by **+3.92 / +3.03 / +2.67** points on BFCL-v3 / τ-Bench / ACEBench-Agent. The [paper](https://arxiv.org/abs/2610.37609) also reports DPS and LEEPS baselines, per-subset scores, ablations, and qualitative case studies.
+
+## Release contents
+
+- The EnvSched scheduler ([`selector/`](selector/))
+- GRPO training profiles for **Qwen3-1.7B, 4B, and 8B** on the EnvScaler pool ([`configs/`](configs/))
+- A modified [ROLL](https://github.com/alibaba/ROLL) runtime with curriculum updates, trajectory logging, and the EnvScaler environments ([`vendor/ROLL/`](vendor/ROLL/))
+- An LLM-based task-topology extraction tool ([`topology_generator/`](topology_generator/))
 
 ## Quick start
 
 ### 1. Install
+
+```bash
+git clone https://github.com/Hhankyangg/envsched.git
+cd envsched
+```
 
 Training needs Linux x86_64, Python 3.10, NVIDIA GPUs, CUDA 12.4, cuDNN 9, and a C++/CUDA build toolchain. The pinned runtime is PyTorch 2.6.0, vLLM 0.8.4, and Megatron Core 0.16.1.
 
@@ -66,7 +154,7 @@ python topology_generator/generate_topology.py \
 cp outputs/topology/task_topologies.jsonl data/
 ```
 
-LLM output varies between models and runs, so your topologies will not match the paper's exactly. See `topology_generator/README.md` for more options.
+See [`topology_generator/README.md`](topology_generator/README.md) for extraction options and resume behavior.
 
 ### 4. Check everything before training
 
@@ -152,11 +240,30 @@ By default the scheduler stores full N×N similarity matrices. For large task po
 | `data/` | Data manifest and fixed sampling seeds; downloaded and generated data also go here |
 | `tests/` | CPU tests |
 
-## Limitations
+## Evaluation
 
-- The bundled BFCL environment is for validation during training. It is not an official BFCL scoring suite.
-- This release was tested with the CPU test suite, data download from EnvScaler, and `train.py --prepare-only`. A fresh CUDA installation and full GPU training were not re-run as part of packaging.
+The bundled BFCL environment provides per-step validation during training. Use the official benchmark evaluators for the downstream scores reported in the paper.
+
+## Citation
+
+If you find EnvSched useful in your research, please cite our paper:
+
+```bibtex
+@misc{yang2026envschedenvironmentawareschedulingrolloutefficient,
+      title={EnvSched: Environment-Aware Scheduling for Rollout-Efficient Agent Reinforcement Learning}, 
+      author={Sihan Yang and Weichen Bai and Ruichuan An and Yiming Cheng and Zhiyuan Feng and Tianyi Jiang and Renye Yan and Ning Ding and Yifan Zhang and Renrui Zhang and Yehui Tang and Wentao Zhang},
+      year={2026},
+      eprint={2610.37609},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2610.37609}, 
+}
+```
+
+## Acknowledgments
+
+This project builds on [ROLL](https://github.com/alibaba/ROLL) and the [EnvScaler](https://github.com/RUC-NLPIR/EnvScaler) environment pool. We thank their authors and the developers of the open-source models, benchmarks, and libraries used in this work. See [third-party notices](THIRD_PARTY_NOTICES.md) for attribution and licensing details.
 
 ## License
 
-MIT; see `LICENSE`. `vendor/ROLL` keeps its Apache-2.0 license in `vendor/ROLL/LICENSE`. See `THIRD_PARTY_NOTICES.md` for the data and other third-party components. Model weights and dependencies keep their own licenses.
+This project is released under the [MIT License](LICENSE). The bundled ROLL runtime uses [Apache-2.0](vendor/ROLL/LICENSE). See [third-party notices](THIRD_PARTY_NOTICES.md) for data and dependency licenses.
