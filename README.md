@@ -2,17 +2,22 @@
 <h3 align="center">Environment-Aware Scheduling for<br>Rollout-Efficient Agent Reinforcement Learning</h3>
 
 <p align="center">
-  Sihan Yang, Weichen Bai, Ruichuan An, Yiming Cheng, Zhiyuan Feng, Tianyi Jiang,<br>
-  Renye Yan, Ning Ding, Yifan Zhang, Renrui Zhang, Yehui Tang, Wentao Zhang
+  Sihan Yang<sup>1,*</sup>, Weichen Bai<sup>2,*</sup>, Ruichuan An<sup>1,*,†</sup>, Yiming Cheng<sup>3</sup>, Zhiyuan Feng<sup>3</sup>, Tianyi Jiang<sup>1</sup>,<br>
+  Renye Yan<sup>1</sup>, Ning Ding<sup>4</sup>, Yifan Zhang<sup>5,†</sup>, Renrui Zhang<sup>6</sup>, Yehui Tang<sup>4,‡</sup>, Wentao Zhang<sup>1,‡</sup>
 </p>
 
 <p align="center">
-  PKU · XJTU · THU · Samsung Research · CASIA · CUHK
+  <sup>1</sup> PKU · <sup>2</sup> XJTU · <sup>3</sup> THU · <sup>4</sup> Samsung Research · <sup>5</sup> CASIA · <sup>6</sup> CUHK
+</p>
+
+<p align="center">
+  <sup>*</sup> Equal contribution. &nbsp; <sup>†</sup> Project leader. &nbsp; <sup>‡</sup> Corresponding authors.
 </p>
 
 <p align="center">
   <a href="https://arxiv.org/abs/2610.37609"><img src="https://img.shields.io/badge/arXiv-2610.37609-b31b1b.svg" alt="arXiv:2610.37609"></a>
   <a href="https://arxiv.org/pdf/2610.37609"><img src="https://img.shields.io/badge/Paper-PDF-2563eb.svg" alt="Paper PDF"></a>
+  <a href="https://huggingface.co/papers/2610.37609"><img src="https://img.shields.io/badge/Hugging%20Face-Papers-FFD21E.svg?logo=huggingface&amp;logoColor=000000" alt="Hugging Face Papers"></a>
   <a href="https://github.com/Hhankyangg/envsched"><img src="https://img.shields.io/badge/Code-GitHub-181717.svg?logo=github" alt="Code on GitHub"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-16a34a.svg" alt="MIT License"></a>
 </p>
@@ -134,11 +139,11 @@ This downloads three files from a pinned EnvScaler commit, checks each against t
 | `environment_metadata.json` | The 51 environments those tasks use, taken from EnvScaler's `191_env_metadata.json` | same as above |
 | `data_multi_turn_base.json` | BFCL-v3 multi-turn base, used for validation during training | `vendor/ROLL/roll/pipeline/agentic/env/bfcl_env/data/` |
 
-These are byte-for-byte the files used in the paper. Without network access, download them yourself and pass `--source-dir /path/to/EnvScaler` (a clone of the repository, or a folder holding the three files).
+For offline data preparation, pass `--source-dir /path/to/EnvScaler` with a repository clone or a folder holding the three files.
 
 ### 3. Generate the task topologies
 
-The cross-environment edges need `data/task_topologies.jsonl`, one LLM-extracted topology per task. The prompt is in Appendix E of the paper. Any OpenAI-compatible chat endpoint works. Expect one request per task, 2,550 in total; finished tasks are cached, so an interrupted run resumes where it stopped.
+The cross-environment edges use `data/task_topologies.jsonl`, with one LLM-extracted topology per task. Use an OpenAI-compatible chat endpoint with the prompt in Appendix E of the paper. Extraction makes 2,550 requests; completed tasks are cached so interrupted runs can resume.
 
 ```bash
 python -m pip install -r topology_generator/requirements.txt
@@ -156,7 +161,7 @@ cp outputs/topology/task_topologies.jsonl data/
 
 See [`topology_generator/README.md`](topology_generator/README.md) for extraction options and resume behavior.
 
-### 4. Check everything before training
+### 4. Prepare training
 
 ```bash
 python scripts/prepare_data.py --check
@@ -194,7 +199,7 @@ Inside `--run-dir`:
 | `output/cases/` | Rollout records, which the scheduler reads to pick the next step |
 | `output/logs/` | Training logs |
 | `checkpoint/` | Model checkpoints |
-| `resolved_config.yaml` | The full training config actually used |
+| `resolved_config.yaml` | Resolved training config |
 
 During training, ROLL runs `scripts/update_online_variance_curriculum.sh` after each step, and that script runs `selector/select_online_high_variance.py` to pick the next batch.
 
@@ -220,7 +225,7 @@ The defaults follow Appendix D of the paper. They are the same for every model s
 
 ### Faster graph backend (optional)
 
-By default the scheduler stores full N×N similarity matrices. For large task pools, add `--graph-execution-mode incremental_exact` to `curriculum_update_command` in `configs/selector.yaml`. The scheduler then keeps sparse features and per-task neighbor lists, and scores only newly observed tasks each step (Section 3.3.2 of the paper). It picks exactly the same tasks as the default; `tests/test_incremental_similarity_graph.py` checks this.
+For large task pools, add `--graph-execution-mode incremental_exact` to `curriculum_update_command` in `configs/selector.yaml`. This backend stores sparse features and per-task neighbor lists, and computes similarities only for newly observed tasks at each step.
 
 ## Repository layout
 
@@ -239,10 +244,6 @@ By default the scheduler stores full N×N similarity matrices. For large task po
 | `python_patches/` | Compatibility patches for the training stack |
 | `data/` | Data manifest and fixed sampling seeds; downloaded and generated data also go here |
 | `tests/` | CPU tests |
-
-## Evaluation
-
-The bundled BFCL environment provides per-step validation during training. Use the official benchmark evaluators for the downstream scores reported in the paper.
 
 ## Citation
 
